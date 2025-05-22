@@ -2,56 +2,223 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <title>簡單資料提交</title>
+  <title>打卡系統</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    input, button { margin: 5px 0; padding: 8px; }
+    #punchList { margin-top: 20px; }
+  </style>
 </head>
 <body>
-  <h1>測試資料寫入</h1>
+  <h1>打卡系統</h1>
   <div>
-    <label for="name">名稱：</label>
-    <input type="text" id="name" placeholder="請輸入名稱">
+    <label for="username">使用者帳號：</label>
+    <input type="text" id="username" placeholder="請輸入帳號">
+    <button id="loginButton">登入</button>
+    <button id="logoutButton" style="display:none;">登出</button>
   </div>
-  <div>
-    <label for="message">訊息：</label>
-    <input type="text" id="message" placeholder="請輸入訊息">
+  <div id="actions" style="display:none;">
+    <button id="punchButton">打卡</button>
+    <button id="leaveButton">請假</button>
+    <input type="text" id="leaveReason" placeholder="請輸入請假事由" style="display:none;">
+    <button id="clearButton">清除紀錄</button>
+    <button id="exportButton">匯出 CSV</button>
   </div>
-  <button id="submitButton">提交</button>
-  <p id="status"></p>
+  <ul id="punchList"></ul>
 
   <script>
-    const API_URL = 'https://script.google.com/macros/s/AKfycbzcxLs0XDIjuLFDbFSSt59r7gUFXO7h8y9RZl7FEAkbI_MXcKbYlzjIMVpT5rPfQNZm4g/exec';  // 請將此處替換為你的 Google Apps Script URL
+    const API_URL = 'https://script.google.com/macros/s/AKfycbzcxLs0XDIjuLFDbFSSt59r7gUFXO7h8y9RZl7FEAkbI_MXcKbYlzjIMVpT5rPfQNZm4g/exec';
+    let currentUser = null;
+    let allRecords = JSON.parse(localStorage.getItem('allPunchRecords')) || {};
 
-    document.getElementById('submitButton').addEventListener('click', () => {
-      const name = document.getElementById('name').value.trim();
-      const message = document.getElementById('message').value.trim();
+    document.addEventListener('DOMContentLoaded', () => {
+      const usernameInput = document.getElementById('username');
+      const loginButton = document.getElementById('loginButton');
+      const logoutButton = document.getElementById('logoutButton');
+      const actions = document.getElementById('actions');
+      const punchButton = document.getElementById('punchButton');
+      const leaveButton = document.getElementById('leaveButton');
+      const leaveReasonInput = document.getElementById('leaveReason');
+      const clearButton = document.getElementById('clearButton');
+      const exportButton = document.getElementById('exportButton');
+      const punchList = document.getElementById('punchList');
 
-      if (!name || !message) {
-        alert('請輸入名稱和訊息');
-        return;
+      const lastUser = localStorage.getItem('lastUser');
+      if (lastUser) {
+        currentUser = lastUser;
+        if (!allRecords[currentUser]) allRecords[currentUser] = {};
+        usernameInput.value = currentUser;
+        showActions();
+        renderRecords();
       }
 
-      // 傳送 POST 請求
-      fetch(API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ name: name, message: message }),
-        headers: { 'Content-Type': 'application/json' }
-      })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('網路錯誤，請稍後再試');
-        }
-        return response.json();
-      })
-      .then(data => {
-        if (data.result === 'success') {
-          document.getElementById('status').textContent = '資料已成功寫入！';
-        } else {
-          document.getElementById('status').textContent = '發生錯誤：' + data.message;
-        }
-      })
-      .catch(error => {
-        console.error('錯誤:', error);
-        document.getElementById('status').textContent = '發生錯誤，請檢查控制台';
+      loginButton.addEventListener('click', () => {
+        const input = usernameInput.value.trim().toLowerCase();
+        if (!input) return alert('請輸入使用者帳號！');
+        currentUser = input;
+        if (!allRecords[currentUser]) allRecords[currentUser] = {};
+        localStorage.setItem('lastUser', currentUser);
+        showActions();
+        renderRecords();
       });
+
+      logoutButton.addEventListener('click', () => {
+        localStorage.removeItem('lastUser');
+        currentUser = null;
+        usernameInput.value = '';
+        punchList.innerHTML = '';
+        hideActions();
+      });
+
+      punchButton.addEventListener('click', () => {
+        if (!currentUser) return alert('請先登入帳號！');
+        const now = new Date();
+        const dateKey = now.toLocaleDateString('zh-TW');
+        const fullTime = now.toISOString();
+
+        const userRecords = allRecords[currentUser];
+        if (!userRecords[dateKey]) {
+          userRecords[dateKey] = { start: null, end: null, leave: false, leaveReason: '' };
+        }
+
+        const today = userRecords[dateKey];
+        if (today.leave) return alert('今天已請假，無法打卡。');
+
+        if (!today.start) {
+          today.start = fullTime;
+          alert('已打卡上班：' + formatTime(fullTime));
+        } else if (!today.end) {
+          today.end = fullTime;
+          alert('已打卡下班：' + formatTime(fullTime));
+        } else {
+          alert('今日已完成打卡！');
+          return;
+        }
+
+        saveRecords();
+        renderRecords();
+        sendToSheet({
+          user: currentUser,
+          date: dateKey,
+          start: today.start,
+          end: today.end,
+          leave: today.leave ? "是" : "否",
+          reason: today.leaveReason
+        });
+      });
+
+      leaveButton.addEventListener('click', () => {
+        const reason = leaveReasonInput.value.trim();
+        if (!reason) {
+          leaveReasonInput.style.display = 'inline-block';
+          leaveReasonInput.focus();
+          return;
+        }
+        const now = new Date();
+        const dateKey = now.toLocaleDateString('zh-TW');
+        const userRecords = allRecords[currentUser];
+        if (!userRecords[dateKey]) userRecords[dateKey] = {};
+        userRecords[dateKey].leave = true;
+        userRecords[dateKey].leaveReason = reason;
+        leaveReasonInput.value = '';
+        leaveReasonInput.style.display = 'none';
+        saveRecords();
+        renderRecords();
+        sendToSheet({
+          user: currentUser,
+          date: dateKey,
+          leave: "是",
+          reason: reason
+        });
+      });
+
+      clearButton.addEventListener('click', () => {
+        if (confirm('確定要清除所有紀錄？')) {
+          allRecords = {};
+          localStorage.removeItem('allPunchRecords');
+          renderRecords();
+        }
+      });
+
+      exportButton.addEventListener('click', () => {
+        const userRecords = allRecords[currentUser];
+        if (!userRecords) return;
+        const rows = [["日期", "上班時間", "下班時間", "工時", "請假", "請假事由"]];
+        for (let date in userRecords) {
+          const r = userRecords[date];
+          let duration = "";
+          if (r.start && r.end) {
+            const d1 = new Date(r.start), d2 = new Date(r.end);
+            const ms = d2 - d1, mins = Math.floor(ms / 60000), hrs = Math.floor(mins / 60);
+            duration = `${hrs}小時${mins % 60}分鐘`;
+          }
+          rows.push([
+            date,
+            r.start ? formatTime(r.start) : "",
+            r.end ? formatTime(r.end) : "",
+            duration,
+            r.leave ? "是" : "否",
+            r.leaveReason || ""
+          ]);
+        }
+
+        const csv = rows.map(r => r.join(",")).join("\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `${currentUser}_打卡紀錄.csv`;
+        link.click();
+      });
+
+      function showActions() {
+        actions.style.display = 'block';
+        logoutButton.style.display = 'inline';
+      }
+
+      function hideActions() {
+        actions.style.display = 'none';
+        logoutButton.style.display = 'none';
+      }
+
+      function renderRecords() {
+        punchList.innerHTML = '';
+        const userRecords = allRecords[currentUser];
+        const keys = Object.keys(userRecords).sort().reverse();
+        for (let date of keys) {
+          const r = userRecords[date];
+          const li = document.createElement('li');
+          if (r.leave) {
+            li.textContent = `【${date}】請假：${r.leaveReason}`;
+          } else {
+            li.textContent = `【${date}】上班：${r.start ? formatTime(r.start) : '-'} 下班：${r.end ? formatTime(r.end) : '-'}`;
+          }
+          punchList.appendChild(li);
+        }
+      }
+
+      function saveRecords() {
+        localStorage.setItem('allPunchRecords', JSON.stringify(allRecords));
+      }
+
+      function formatTime(iso) {
+        const d = new Date(iso);
+        return d.toLocaleString('zh-TW');
+      }
+
+      async function sendToSheet(data) {
+        try {
+          const response = await fetch(API_URL, {
+            method: 'POST',
+            body: JSON.stringify(data),
+            headers: { 'Content-Type': 'application/json' }
+          });
+          const result = await response.json();
+          console.log('Data saved successfully', result);
+        } catch (error) {
+          console.error('Error saving data:', error);
+          alert('發生錯誤，請檢查控制台');
+        }
+      }
     });
   </script>
 </body>
