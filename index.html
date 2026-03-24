@@ -1,225 +1,133 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
-  <title>打卡系統</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    input, button { margin: 5px 0; padding: 8px; }
-    #punchList { margin-top: 20px; }
-  </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CRM 名單管理</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <h1>打卡系統</h1>
-  <div>
-    <label for="username">使用者帳號：</label>
-    <input type="text" id="username" placeholder="請輸入帳號">
-    <button id="loginButton">登入</button>
-    <button id="logoutButton" style="display:none;">登出</button>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">CRM MVP</p>
+        <h1>名單管理頁面</h1>
+        <p class="subtitle">支援新增、編輯、刪除、狀態管理，資料暫存 24 小時。</p>
+      </div>
+      <div class="topbar-actions">
+        <button id="clearExpiredBtn" class="btn btn-secondary">清除過期資料</button>
+        <button id="clearAllBtn" class="btn btn-danger">清空全部名單</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="card form-card">
+        <div class="card-header">
+          <h2 id="formTitle">新增名單</h2>
+          <span class="badge">暫存 24 小時</span>
+        </div>
+
+        <form id="leadForm" class="lead-form">
+          <input type="hidden" id="leadId" />
+
+          <label>
+            公司名稱
+            <input type="text" id="company" placeholder="例如：大成工業股份有限公司" required />
+          </label>
+
+          <label>
+            聯絡人
+            <input type="text" id="contact" placeholder="例如：王先生" />
+          </label>
+
+          <label>
+            電話
+            <input type="tel" id="phone" placeholder="例如：0912-345-678" />
+          </label>
+
+          <label>
+            地址
+            <input type="text" id="address" placeholder="例如：高雄市岡山區..." />
+          </label>
+
+          <label>
+            狀態
+            <select id="status" required>
+              <option value="未聯絡">未聯絡</option>
+              <option value="已聯絡">已聯絡</option>
+              <option value="待追蹤">待追蹤</option>
+              <option value="有興趣">有興趣</option>
+              <option value="已成交">已成交</option>
+              <option value="無意願">無意願</option>
+            </select>
+          </label>
+
+          <label>
+            備註
+            <textarea id="note" rows="4" placeholder="可記錄開發重點、客戶需求、追蹤時間..."></textarea>
+          </label>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="submitBtn">新增名單</button>
+            <button type="button" class="btn btn-secondary" id="cancelEditBtn" hidden>取消編輯</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card list-card">
+        <div class="card-header card-header-stack">
+          <div>
+            <h2>名單列表</h2>
+            <p class="hint">資料只會保留 24 小時，之後自動失效。</p>
+          </div>
+          <div class="toolbar">
+            <input type="search" id="searchInput" placeholder="搜尋公司、聯絡人、電話、地址..." />
+            <select id="filterStatus">
+              <option value="全部">全部狀態</option>
+              <option value="未聯絡">未聯絡</option>
+              <option value="已聯絡">已聯絡</option>
+              <option value="待追蹤">待追蹤</option>
+              <option value="有興趣">有興趣</option>
+              <option value="已成交">已成交</option>
+              <option value="無意願">無意願</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="stats" id="stats"></div>
+
+        <div id="emptyState" class="empty-state">
+          目前還沒有名單，先從左邊新增第一筆。
+        </div>
+
+        <div id="leadList" class="lead-list"></div>
+      </section>
+    </main>
   </div>
-  <div id="actions" style="display:none;">
-    <button id="punchButton">打卡</button>
-    <button id="leaveButton">請假</button>
-    <input type="text" id="leaveReason" placeholder="請輸入請假事由" style="display:none;">
-    <button id="clearButton">清除紀錄</button>
-    <button id="exportButton">匯出 CSV</button>
-  </div>
-  <ul id="punchList"></ul>
 
-  <script>
-    const API_URL = 'https://script.google.com/macros/s/AKfycbzcxLs0XDIjuLFDbFSSt59r7gUFXO7h8y9RZl7FEAkbI_MXcKbYlzjIMVpT5rPfQNZm4g/exec';
-    let currentUser = null;
-    let allRecords = JSON.parse(localStorage.getItem('allPunchRecords')) || {};
+  <template id="leadCardTemplate">
+    <article class="lead-card">
+      <div class="lead-main">
+        <div class="lead-head">
+          <h3 class="lead-company"></h3>
+          <span class="status-pill"></span>
+        </div>
+        <div class="lead-grid">
+          <p><strong>聯絡人：</strong><span class="lead-contact"></span></p>
+          <p><strong>電話：</strong><span class="lead-phone"></span></p>
+          <p><strong>地址：</strong><span class="lead-address"></span></p>
+          <p><strong>建立時間：</strong><span class="lead-created"></span></p>
+          <p><strong>到期時間：</strong><span class="lead-expire"></span></p>
+        </div>
+        <p class="lead-note"></p>
+      </div>
+      <div class="lead-actions">
+        <button class="btn btn-secondary edit-btn">編輯</button>
+        <button class="btn btn-danger delete-btn">刪除</button>
+      </div>
+    </article>
+  </template>
 
-    document.addEventListener('DOMContentLoaded', () => {
-      const usernameInput = document.getElementById('username');
-      const loginButton = document.getElementById('loginButton');
-      const logoutButton = document.getElementById('logoutButton');
-      const actions = document.getElementById('actions');
-      const punchButton = document.getElementById('punchButton');
-      const leaveButton = document.getElementById('leaveButton');
-      const leaveReasonInput = document.getElementById('leaveReason');
-      const clearButton = document.getElementById('clearButton');
-      const exportButton = document.getElementById('exportButton');
-      const punchList = document.getElementById('punchList');
-
-      const lastUser = localStorage.getItem('lastUser');
-      if (lastUser) {
-        currentUser = lastUser;
-        if (!allRecords[currentUser]) allRecords[currentUser] = {};
-        usernameInput.value = currentUser;
-        showActions();
-        renderRecords();
-      }
-
-      loginButton.addEventListener('click', () => {
-        const input = usernameInput.value.trim().toLowerCase();
-        if (!input) return alert('請輸入使用者帳號！');
-        currentUser = input;
-        if (!allRecords[currentUser]) allRecords[currentUser] = {};
-        localStorage.setItem('lastUser', currentUser);
-        showActions();
-        renderRecords();
-      });
-
-      logoutButton.addEventListener('click', () => {
-        localStorage.removeItem('lastUser');
-        currentUser = null;
-        usernameInput.value = '';
-        punchList.innerHTML = '';
-        hideActions();
-      });
-
-      punchButton.addEventListener('click', () => {
-        if (!currentUser) return alert('請先登入帳號！');
-        const now = new Date();
-        const dateKey = now.toLocaleDateString('zh-TW');
-        const fullTime = now.toISOString();
-
-        const userRecords = allRecords[currentUser];
-        if (!userRecords[dateKey]) {
-          userRecords[dateKey] = { start: null, end: null, leave: false, leaveReason: '' };
-        }
-
-        const today = userRecords[dateKey];
-        if (today.leave) return alert('今天已請假，無法打卡。');
-
-        if (!today.start) {
-          today.start = fullTime;
-          alert('已打卡上班：' + formatTime(fullTime));
-        } else if (!today.end) {
-          today.end = fullTime;
-          alert('已打卡下班：' + formatTime(fullTime));
-        } else {
-          alert('今日已完成打卡！');
-          return;
-        }
-
-        saveRecords();
-        renderRecords();
-        sendToSheet({
-          user: currentUser,
-          date: dateKey,
-          start: today.start,
-          end: today.end,
-          leave: today.leave ? "是" : "否",
-          reason: today.leaveReason
-        });
-      });
-
-      leaveButton.addEventListener('click', () => {
-        const reason = leaveReasonInput.value.trim();
-        if (!reason) {
-          leaveReasonInput.style.display = 'inline-block';
-          leaveReasonInput.focus();
-          return;
-        }
-        const now = new Date();
-        const dateKey = now.toLocaleDateString('zh-TW');
-        const userRecords = allRecords[currentUser];
-        if (!userRecords[dateKey]) userRecords[dateKey] = {};
-        userRecords[dateKey].leave = true;
-        userRecords[dateKey].leaveReason = reason;
-        leaveReasonInput.value = '';
-        leaveReasonInput.style.display = 'none';
-        saveRecords();
-        renderRecords();
-        sendToSheet({
-          user: currentUser,
-          date: dateKey,
-          leave: "是",
-          reason: reason
-        });
-      });
-
-      clearButton.addEventListener('click', () => {
-        if (confirm('確定要清除所有紀錄？')) {
-          allRecords = {};
-          localStorage.removeItem('allPunchRecords');
-          renderRecords();
-        }
-      });
-
-      exportButton.addEventListener('click', () => {
-        const userRecords = allRecords[currentUser];
-        if (!userRecords) return;
-        const rows = [["日期", "上班時間", "下班時間", "工時", "請假", "請假事由"]];
-        for (let date in userRecords) {
-          const r = userRecords[date];
-          let duration = "";
-          if (r.start && r.end) {
-            const d1 = new Date(r.start), d2 = new Date(r.end);
-            const ms = d2 - d1, mins = Math.floor(ms / 60000), hrs = Math.floor(mins / 60);
-            duration = `${hrs}小時${mins % 60}分鐘`;
-          }
-          rows.push([
-            date,
-            r.start ? formatTime(r.start) : "",
-            r.end ? formatTime(r.end) : "",
-            duration,
-            r.leave ? "是" : "否",
-            r.leaveReason || ""
-          ]);
-        }
-
-        const csv = rows.map(r => r.join(",")).join("\n");
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `${currentUser}_打卡紀錄.csv`;
-        link.click();
-      });
-
-      function showActions() {
-        actions.style.display = 'block';
-        logoutButton.style.display = 'inline';
-      }
-
-      function hideActions() {
-        actions.style.display = 'none';
-        logoutButton.style.display = 'none';
-      }
-
-      function renderRecords() {
-        punchList.innerHTML = '';
-        const userRecords = allRecords[currentUser];
-        const keys = Object.keys(userRecords).sort().reverse();
-        for (let date of keys) {
-          const r = userRecords[date];
-          const li = document.createElement('li');
-          if (r.leave) {
-            li.textContent = `【${date}】請假：${r.leaveReason}`;
-          } else {
-            li.textContent = `【${date}】上班：${r.start ? formatTime(r.start) : '-'} 下班：${r.end ? formatTime(r.end) : '-'}`;
-          }
-          punchList.appendChild(li);
-        }
-      }
-
-      function saveRecords() {
-        localStorage.setItem('allPunchRecords', JSON.stringify(allRecords));
-      }
-
-      function formatTime(iso) {
-        const d = new Date(iso);
-        return d.toLocaleString('zh-TW');
-      }
-
-      async function sendToSheet(data) {
-        try {
-          const response = await fetch(API_URL, {
-            method: 'POST',
-            body: JSON.stringify(data),
-            headers: { 'Content-Type': 'application/json' }
-          });
-          const result = await response.json();
-          console.log('Data saved successfully', result);
-        } catch (error) {
-          console.error('Error saving data:', error);
-          alert('發生錯誤，請檢查控制台');
-        }
-      }
-    });
-  </script>
+  <script src="script.js"></script>
 </body>
 </html>
