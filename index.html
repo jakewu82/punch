@@ -7,55 +7,37 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="app-shell">
-    <header class="topbar">
-      <div>
-        <p class="eyebrow">CRM MVP</p>
-        <h1>名單管理頁面</h1>
-        <p class="subtitle">支援新增、編輯、刪除、狀態管理，資料暫存 24 小時。</p>
-      </div>
-      <div class="topbar-actions">
-        <button id="clearExpiredBtn" class="btn btn-secondary">清除過期資料</button>
-        <button id="clearAllBtn" class="btn btn-danger">清空全部名單</button>
-      </div>
+  <div class="app">
+    <header class="header">
+      <h1>CRM 名單管理</h1>
+      <p>資料暫存在本機 24 小時，可匯出 CSV</p>
     </header>
 
-    <main class="layout">
-      <section class="card form-card">
-        <div class="card-header">
-          <h2 id="formTitle">新增名單</h2>
-          <span class="badge">暫存 24 小時</span>
-        </div>
-
-        <form id="leadForm" class="lead-form">
-          <input type="hidden" id="leadId" />
-
+    <section class="card">
+      <h2 id="formTitle">新增名單</h2>
+      <form id="crmForm">
+        <div class="grid">
           <label>
-            公司名稱
-            <input type="text" id="company" placeholder="例如：大成工業股份有限公司" required />
-          </label>
-
-          <label>
-            聯絡人
-            <input type="text" id="contact" placeholder="例如：王先生" />
+            公司 / 姓名
+            <input type="text" id="name" placeholder="請輸入公司或姓名" required />
           </label>
 
           <label>
             電話
-            <input type="tel" id="phone" placeholder="例如：0912-345-678" />
+            <input type="text" id="phone" placeholder="請輸入電話" />
           </label>
 
-          <label>
+          <label class="full">
             地址
-            <input type="text" id="address" placeholder="例如：高雄市岡山區..." />
+            <input type="text" id="address" placeholder="請輸入地址" />
           </label>
 
           <label>
             狀態
-            <select id="status" required>
+            <select id="status">
               <option value="未聯絡">未聯絡</option>
               <option value="已聯絡">已聯絡</option>
-              <option value="待追蹤">待追蹤</option>
+              <option value="追蹤中">追蹤中</option>
               <option value="有興趣">有興趣</option>
               <option value="已成交">已成交</option>
               <option value="無意願">無意願</option>
@@ -64,69 +46,40 @@
 
           <label>
             備註
-            <textarea id="note" rows="4" placeholder="可記錄開發重點、客戶需求、追蹤時間..."></textarea>
+            <input type="text" id="note" placeholder="可填備註" />
           </label>
-
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary" id="submitBtn">新增名單</button>
-            <button type="button" class="btn btn-secondary" id="cancelEditBtn" hidden>取消編輯</button>
-          </div>
-        </form>
-      </section>
-
-      <section class="card list-card">
-        <div class="card-header card-header-stack">
-          <div>
-            <h2>名單列表</h2>
-            <p class="hint">資料只會保留 24 小時，之後自動失效。</p>
-          </div>
-          <div class="toolbar">
-            <input type="search" id="searchInput" placeholder="搜尋公司、聯絡人、電話、地址..." />
-            <select id="filterStatus">
-              <option value="全部">全部狀態</option>
-              <option value="未聯絡">未聯絡</option>
-              <option value="已聯絡">已聯絡</option>
-              <option value="待追蹤">待追蹤</option>
-              <option value="有興趣">有興趣</option>
-              <option value="已成交">已成交</option>
-              <option value="無意願">無意願</option>
-            </select>
-          </div>
         </div>
 
-        <div class="stats" id="stats"></div>
-
-        <div id="emptyState" class="empty-state">
-          目前還沒有名單，先從左邊新增第一筆。
+        <div class="actions">
+          <button type="submit" class="primary" id="submitBtn">儲存名單</button>
+          <button type="button" class="secondary" id="cancelEditBtn">取消編輯</button>
+          <button type="button" class="secondary" id="exportCsvBtn">匯出 CSV</button>
+          <button type="button" class="danger ghost" id="clearAllBtn">清空全部</button>
         </div>
+      </form>
+      <p class="hint" id="storageHint"></p>
+    </section>
 
-        <div id="leadList" class="lead-list"></div>
-      </section>
-    </main>
+    <section class="card">
+      <div class="toolbar">
+        <input type="text" id="searchInput" placeholder="搜尋公司 / 電話 / 地址 / 備註" />
+        <select id="filterStatus">
+          <option value="">全部狀態</option>
+          <option value="未聯絡">未聯絡</option>
+          <option value="已聯絡">已聯絡</option>
+          <option value="追蹤中">追蹤中</option>
+          <option value="有興趣">有興趣</option>
+          <option value="已成交">已成交</option>
+          <option value="無意願">無意願</option>
+        </select>
+      </div>
+
+      <div class="stats" id="stats"></div>
+
+      <div id="emptyState" class="empty">目前沒有名單資料</div>
+      <div id="list" class="list"></div>
+    </section>
   </div>
-
-  <template id="leadCardTemplate">
-    <article class="lead-card">
-      <div class="lead-main">
-        <div class="lead-head">
-          <h3 class="lead-company"></h3>
-          <span class="status-pill"></span>
-        </div>
-        <div class="lead-grid">
-          <p><strong>聯絡人：</strong><span class="lead-contact"></span></p>
-          <p><strong>電話：</strong><span class="lead-phone"></span></p>
-          <p><strong>地址：</strong><span class="lead-address"></span></p>
-          <p><strong>建立時間：</strong><span class="lead-created"></span></p>
-          <p><strong>到期時間：</strong><span class="lead-expire"></span></p>
-        </div>
-        <p class="lead-note"></p>
-      </div>
-      <div class="lead-actions">
-        <button class="btn btn-secondary edit-btn">編輯</button>
-        <button class="btn btn-danger delete-btn">刪除</button>
-      </div>
-    </article>
-  </template>
 
   <script src="script.js"></script>
 </body>
